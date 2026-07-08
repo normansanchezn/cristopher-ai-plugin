@@ -2,8 +2,8 @@
 	"id": "christopher-ai",
 	"name": "Christopher AI",
 	"version": "0.1.0",
-	"minAppVersion": "1.5.0",
-	"description": "Inspired by Alan Turing's longing to preserve the memory of Christopher, Christopher AI turns your Obsidian vault into a personal AI companion that can understand, search, and respond using the knowledge stored in your notes.",
+	"minAppVersion": "1.7.2",
+	"description": "Inspired by Alan Turing's longing to preserve the memory of Christopher, Christopher AI turns your vault into a personal AI companion that can understand, search, and respond using the knowledge stored in your notes.",
 	"author": "Norman Sanchez",
 	"authorUrl": "https://normansanchez.dev",
 	"isDesktopOnly": true

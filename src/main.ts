@@ -1,5 +1,6 @@
 import {
 	App,
+	Component,
 	ItemView,
 	MarkdownRenderer,
 	MarkdownView,
@@ -7,12 +8,12 @@ import {
 	Notice,
 	Plugin,
 	PluginSettingTab,
+	requestUrl,
 	Setting,
 	setIcon,
 	TFile,
 	WorkspaceLeaf
 } from "obsidian";
-import { exec } from "child_process";
 
 const VIEW_TYPE_BRAIN_CHAT = "christopher-ai-chat-view";
 const MAX_COMPACT_MESSAGE_LENGTH = 200;
@@ -33,6 +34,14 @@ interface BrainCandidate {
 	properties: Record<string, unknown>;
 	title: string;
 	metadataScore: number;
+}
+
+interface OllamaTagsResponse {
+	models?: Array<{ name?: string }>;
+}
+
+interface OllamaChatResponse {
+	message?: { content?: string };
 }
 
 const RECOMMENDED_LIGHT_MODELS = [
@@ -72,6 +81,27 @@ const DEFAULT_SETTINGS: BrainChatSettings = {
 	maxCharsPerNote: 2200
 };
 
+function normalizeSettings(data: unknown): BrainChatSettings {
+	if (!data || typeof data !== "object") return { ...DEFAULT_SETTINGS };
+
+	const source = data as Partial<BrainChatSettings>;
+
+	return {
+		ollamaBaseUrl: typeof source.ollamaBaseUrl === "string"
+			? source.ollamaBaseUrl
+			: DEFAULT_SETTINGS.ollamaBaseUrl,
+		chatModel: typeof source.chatModel === "string"
+			? source.chatModel
+			: DEFAULT_SETTINGS.chatModel,
+		maxNotes: typeof source.maxNotes === "number"
+			? source.maxNotes
+			: DEFAULT_SETTINGS.maxNotes,
+		maxCharsPerNote: typeof source.maxCharsPerNote === "number"
+			? source.maxCharsPerNote
+			: DEFAULT_SETTINGS.maxCharsPerNote
+	};
+}
+
 function normalizeBaseUrl(url: string): string {
 	return url.trim().replace(/\/$/, "");
 }
@@ -109,7 +139,11 @@ function humanizePropertyValue(value: unknown): string {
 	if (Array.isArray(value)) return value.map(humanizePropertyValue).join(", ");
 	if (value === null || value === undefined) return "";
 	if (typeof value === "object") return JSON.stringify(value);
-	return String(value);
+	if (typeof value === "string") return value;
+	if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+		return value.toString();
+	}
+	return "";
 }
 
 function getHeadingTitleFromCache(file: TFile, app: App): string {
@@ -124,19 +158,6 @@ function scoreTermAgainstValue(term: string, value: string, exactScore: number, 
 	if (normalized === term) return exactScore;
 	if (normalized.includes(term)) return partialScore;
 	return 0;
-}
-
-function runShellCommand(command: string): Promise<string> {
-	return new Promise((resolve, reject) => {
-		exec(command, { timeout: 1000 * 60 * 30 }, (error, stdout, stderr) => {
-			if (error) {
-				reject(new Error(stderr || error.message));
-				return;
-			}
-
-			resolve(stdout || stderr);
-		});
-	});
 }
 
 function recencyScore(file: TFile): number {
@@ -185,9 +206,11 @@ function wireBrainLinks(app: App, containerEl: HTMLElement, sourcePath: string):
 
 		if (!candidate.includes(".md") && !candidate.includes("/")) continue;
 
-		link.addEventListener("click", async (event) => {
+		link.addEventListener("click", (event) => {
 			event.preventDefault();
-			await openBrainLink(app, candidate, sourcePath);
+			void openBrainLink(app, candidate, sourcePath).catch((error) => {
+				console.error("Christopher AI could not open link:", error);
+			});
 		});
 	}
 }
@@ -204,27 +227,25 @@ export default class ChristopherAIPlugin extends Plugin {
 		);
 
 		this.addRibbonIcon("bot", "Christopher AI", () => {
-			this.activateView();
+			void this.activateView();
 		});
 
 		this.addCommand({
-			id: "open-christopher-ai-chat",
-			name: "Open Christopher AI Chat",
-			callback: () => this.activateView()
+			id: "open-chat",
+			name: "Open chat",
+			callback: () => {
+				void this.activateView();
+			}
 		});
 
 		this.addSettingTab(new BrainChatSettingTab(this.app, this));
-	}
-
-	async onunload() {
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_BRAIN_CHAT);
 	}
 
 	async activateView() {
 		const leaf = this.app.workspace.getRightLeaf(false);
 
 		if (!leaf) {
-			new Notice("No pude abrir el panel de Christopher AI.");
+			new Notice("No pude abrir el panel.");
 			return;
 		}
 
@@ -233,11 +254,11 @@ export default class ChristopherAIPlugin extends Plugin {
 			active: true
 		});
 
-		this.app.workspace.revealLeaf(leaf);
+		await this.app.workspace.revealLeaf(leaf);
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = normalizeSettings(await this.loadData());
 	}
 
 	async saveSettings() {
@@ -246,29 +267,27 @@ export default class ChristopherAIPlugin extends Plugin {
 
 	async fetchInstalledModels(): Promise<string[]> {
 		const baseUrl = normalizeBaseUrl(this.settings.ollamaBaseUrl);
-		const response = await fetch(`${baseUrl}/api/tags`);
+		const response = await requestUrl({
+			url: `${baseUrl}/api/tags`,
+			method: "GET",
+			throw: false
+		});
 
-		if (!response.ok) {
-			const body = await response.text();
-			throw new Error(`No pude leer modelos de Ollama: ${response.status} ${body}`);
+		if (response.status < 200 || response.status >= 300) {
+			throw new Error(`No pude leer modelos de Ollama: ${response.status} ${response.text}`);
 		}
 
-		const json = await response.json();
+		const json = response.json as OllamaTagsResponse;
 
 		return (json.models ?? [])
-			.map((model: { name?: string }) => model.name)
-			.filter((name: string | undefined): name is string => Boolean(name))
+			.map((model) => model.name)
+			.filter((name): name is string => Boolean(name))
 			.sort((a: string, b: string) => a.localeCompare(b));
 	}
 
 	async hasModel(modelName: string): Promise<boolean> {
 		const installedModels = await this.fetchInstalledModels();
 		return installedModels.some((installedModel) => installedModel === modelName);
-	}
-
-	async pullRecommendedModel(): Promise<void> {
-		const modelName = this.settings.chatModel || RECOMMENDED_DEFAULT_MODEL;
-		await runShellCommand(`ollama pull ${modelName}`);
 	}
 
 	async openOllamaDownload(): Promise<void> {
@@ -360,9 +379,9 @@ class BrainChatView extends ItemView {
 		const header = container.createDiv("brain-chat-header");
 		const titlePill = header.createDiv("brain-chat-title-pill");
 		titlePill.createSpan({ text: "🧠" });
-		titlePill.createEl("span", { text: "Christopher AI" });
+		titlePill.createSpan({ text: "Christopher AI" });
 
-		header.createEl("span", {
+		header.createSpan({
 			cls: "brain-chat-header-subtitle",
 			text: "Powered by your vault"
 		});
@@ -393,15 +412,17 @@ class BrainChatView extends ItemView {
 
 		this.setThinking(false);
 
-		this.sendButtonEl.onclick = async () => this.submitPrompt();
+		this.sendButtonEl.onclick = () => {
+			void this.submitPrompt();
+		};
 		this.stopButtonEl.onclick = () => this.stopCurrentRequest();
 
 		this.inputEl.addEventListener("input", () => this.autoResizeInput());
 
-		this.inputEl.addEventListener("keydown", async (event) => {
+		this.inputEl.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
-				await this.submitPrompt();
+				void this.submitPrompt();
 			}
 		});
 	}
@@ -409,7 +430,7 @@ class BrainChatView extends ItemView {
 	async renderEmptyState() {
 		this.emptyStateEl = this.messagesEl.createDiv("brain-chat-empty-state");
 
-		this.emptyStateEl.createEl("div", {
+		this.emptyStateEl.createDiv({
 			cls: "brain-chat-empty-orb",
 			text: "🧠"
 		});
@@ -459,12 +480,12 @@ class BrainChatView extends ItemView {
 		} catch {
 			modelSelect.disabled = true;
 			const setupButton = modelRow.createEl("button", {
-				text: "Instalar Ollama",
+				text: "Instalar ollama",
 				cls: "brain-chat-empty-setup-button"
 			});
 
-			setupButton.onclick = async () => {
-				await this.plugin.openOllamaDownload();
+			setupButton.onclick = () => {
+				void this.plugin.openOllamaDownload();
 			};
 		}
 	}
@@ -628,7 +649,7 @@ class BrainChatView extends ItemView {
 		const currentProperties = currentFile ? this.getPropertiesForFile(currentFile) : {};
 		const currentProject = normalizeToken(humanizePropertyValue(currentProperties.project));
 		const currentArea = normalizeToken(humanizePropertyValue(currentProperties.area));
-		const resolvedLinks = this.app.metadataCache.resolvedLinks as Record<string, Record<string, number>>;
+		const resolvedLinks = this.app.metadataCache.resolvedLinks;
 		const currentOutgoingLinks = currentFile ? Object.keys(resolvedLinks[currentFile.path] ?? {}) : [];
 
 		for (const file of files) {
@@ -807,7 +828,7 @@ class BrainChatView extends ItemView {
 			for (const tag of candidate.tags) seedTags.add(normalizeToken(tag));
 		}
 
-		const resolvedLinks = this.app.metadataCache.resolvedLinks as Record<string, Record<string, number>>;
+		const resolvedLinks = this.app.metadataCache.resolvedLinks;
 
 		for (const candidate of candidates) {
 			const outgoingLinks = resolvedLinks[candidate.file.path] ?? {};
@@ -889,7 +910,8 @@ class BrainChatView extends ItemView {
 			tags.add(normalizeTag(tag.tag));
 		}
 
-		const frontmatterTags = cache?.frontmatter?.tags;
+		const frontmatter = this.getPropertiesForFile(file);
+		const frontmatterTags: unknown = frontmatter.tags;
 
 		if (Array.isArray(frontmatterTags)) {
 			for (const tag of frontmatterTags) {
@@ -908,7 +930,13 @@ class BrainChatView extends ItemView {
 
 	getPropertiesForFile(file: TFile): Record<string, unknown> {
 		const cache = this.app.metadataCache.getFileCache(file);
-		return cache?.frontmatter ?? {};
+		const frontmatter: unknown = cache?.frontmatter;
+
+		if (!frontmatter || typeof frontmatter !== "object") {
+			return {};
+		}
+
+		return frontmatter as Record<string, unknown>;
 	}
 
 	getTitleForFile(file: TFile): string {
@@ -961,10 +989,13 @@ ${context}
 
 		const baseUrl = normalizeBaseUrl(this.plugin.settings.ollamaBaseUrl);
 
-		const response = await fetch(`${baseUrl}/api/chat`, {
+		if (signal.aborted) throw new DOMException("Request aborted.", "AbortError");
+
+		const response = await requestUrl({
+			url: `${baseUrl}/api/chat`,
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			signal,
+			throw: false,
 			body: JSON.stringify({
 				model: this.plugin.settings.chatModel,
 				stream: false,
@@ -975,11 +1006,13 @@ ${context}
 			})
 		});
 
-		const rawBody = await response.text();
+		if (signal.aborted) throw new DOMException("Request aborted.", "AbortError");
 
-		if (!response.ok) throw new Error(`Ollama HTTP ${response.status}: ${rawBody}`);
+		if (response.status < 200 || response.status >= 300) {
+			throw new Error(`Ollama HTTP ${response.status}: ${response.text}`);
+		}
 
-		const json = JSON.parse(rawBody);
+		const json = response.json as OllamaChatResponse;
 		return json.message?.content ?? "Ollama no regresó respuesta.";
 	}
 
@@ -989,8 +1022,9 @@ ${context}
 	}
 
 	shouldIgnoreFile(file: TFile): boolean {
+		const configDir = `${this.app.vault.configDir}/`;
 		const ignoredPrefixes = [
-			".obsidian/",
+			configDir,
 			"node_modules/",
 			".git/",
 			"Templates/",
@@ -1021,7 +1055,6 @@ ${context}
 				event.preventDefault();
 				new FullMessageModal(
 					this.app,
-					this.plugin,
 					text,
 					this.getCurrentFile()?.path ?? ""
 				).open();
@@ -1032,7 +1065,7 @@ ${context}
 				text,
 				bubble,
 				this.getCurrentFile()?.path ?? "",
-				this.plugin
+				this
 			);
 
 			wireBrainLinks(this.app, bubble, this.getCurrentFile()?.path ?? "");
@@ -1068,50 +1101,38 @@ ${context}
 	}
 
 	scrollToBottom() {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
 		});
 	}
 
 	autoResizeInput() {
-		this.inputEl.style.height = "auto";
-		this.inputEl.style.height = `${Math.min(this.inputEl.scrollHeight, 140)}px`;
+		this.inputEl.setCssProps({ "--brain-chat-input-height": "auto" });
+		this.inputEl.setCssProps({
+			"--brain-chat-input-height": `${Math.min(this.inputEl.scrollHeight, 140)}px`
+		});
 	}
 }
 
 class FullMessageModal extends Modal {
-	private plugin: ChristopherAIPlugin;
+	private markdownComponent = new Component();
 	private message: string;
 	private sourcePath: string;
 
-	constructor(app: App, plugin: ChristopherAIPlugin, message: string, sourcePath: string) {
+	constructor(app: App, message: string, sourcePath: string) {
 		super(app);
-		this.plugin = plugin;
 		this.message = message;
 		this.sourcePath = sourcePath;
 	}
 
 	async onOpen() {
 		const { contentEl } = this;
+		this.markdownComponent.load();
 
 		contentEl.empty();
 		contentEl.addClass("brain-chat-modal");
 
 		contentEl.createEl("h2", { text: "Respuesta completa" });
-
-		const toolbar = contentEl.createDiv("brain-chat-modal-toolbar");
-
-		const copyButton = toolbar.createEl("button", {
-			cls: "brain-chat-modal-copy-button",
-			attr: { "aria-label": "Copiar respuesta" }
-		});
-
-		setIcon(copyButton, "copy");
-
-		copyButton.onclick = async () => {
-			await navigator.clipboard.writeText(this.message);
-			new Notice("Respuesta copiada.");
-		};
 
 		const body = contentEl.createDiv("brain-chat-modal-body");
 
@@ -1120,13 +1141,14 @@ class FullMessageModal extends Modal {
 			this.message,
 			body,
 			this.sourcePath,
-			this.plugin
+			this.markdownComponent
 		);
 
 		wireBrainLinks(this.app, body, this.sourcePath);
 	}
 
 	onClose() {
+		this.markdownComponent.unload();
 		this.contentEl.empty();
 	}
 }
@@ -1143,14 +1165,13 @@ class BrainChatSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		containerEl.createEl("h2", { text: "Christopher AI Settings" });
 
 		new Setting(containerEl)
-			.setName("Ollama Base URL")
-			.setDesc("Example: http://localhost:11434 or http://100.96.70.86:11434")
+			.setName("Ollama base URL")
+			.setDesc("Use the default local server unless you changed ollama.")
 			.addText((text) =>
 				text
-					.setPlaceholder("http://localhost:11434")
+					.setPlaceholder("Local server URL")
 					.setValue(this.plugin.settings.ollamaBaseUrl)
 					.onChange(async (value) => {
 						this.plugin.settings.ollamaBaseUrl = value.trim();
@@ -1159,7 +1180,7 @@ class BrainChatSettingTab extends PluginSettingTab {
 			);
 
 		const modelSection = containerEl.createDiv();
-		this.renderModelSelector(modelSection);
+		void this.renderModelSelector(modelSection);
 
 		new Setting(containerEl)
 			.setName("Max notes")
@@ -1168,7 +1189,6 @@ class BrainChatSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(3, 20, 1)
 					.setValue(this.plugin.settings.maxNotes)
-					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.maxNotes = value;
 						await this.plugin.saveSettings();
@@ -1182,7 +1202,6 @@ class BrainChatSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(500, 5000, 100)
 					.setValue(this.plugin.settings.maxCharsPerNote)
-					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.maxCharsPerNote = value;
 						await this.plugin.saveSettings();
@@ -1194,10 +1213,13 @@ class BrainChatSettingTab extends PluginSettingTab {
 	async renderModelSelector(containerEl: HTMLElement) {
 		containerEl.empty();
 
-		containerEl.createEl("h3", { text: "Chat model" });
-		containerEl.createEl("p", { text: "Christopher AI reads the models already installed in Ollama." });
+		new Setting(containerEl)
+			.setName("Chat model")
+			.setHeading();
 
-		const statusEl = containerEl.createEl("p", { text: "Loading models from Ollama..." });
+		containerEl.createEl("p", { text: "Christopher AI reads the models already installed in ollama." });
+
+		const statusEl = containerEl.createEl("p", { text: "Loading models from ollama..." });
 
 		try {
 			const installedModels = await this.plugin.fetchInstalledModels();
@@ -1209,7 +1231,7 @@ class BrainChatSettingTab extends PluginSettingTab {
 
 				new Setting(containerEl)
 					.setName("Chat model")
-					.setDesc("Choose one of your installed Ollama models.")
+					.setDesc("Choose one of your installed ollama models.")
 					.addDropdown((dropdown) => {
 						for (const modelName of installedModels) {
 							dropdown.addOption(modelName, modelName);
@@ -1232,24 +1254,24 @@ class BrainChatSettingTab extends PluginSettingTab {
 
 				new Setting(containerEl)
 					.setName("Refresh list")
-					.setDesc("Read installed models from Ollama again.")
+					.setDesc("Read installed models from ollama again.")
 					.addButton((button) =>
 						button
 							.setButtonText("Refresh")
 							.onClick(() => {
-								this.renderModelSelector(containerEl);
+								void this.renderModelSelector(containerEl);
 							})
 					);
 
 				if (!hasRecommendedModel) {
 					new Setting(containerEl)
 						.setName(`Install recommended model: ${RECOMMENDED_DEFAULT_MODEL}`)
-						.setDesc("Recommended default for fast local vault search and note analysis.")
+						.setDesc(`Recommended default for fast local vault search and note analysis. Run: ollama pull ${RECOMMENDED_DEFAULT_MODEL}`)
 						.addButton((button) =>
 							button
-								.setButtonText("Pull model")
-								.onClick(async () => {
-									await this.pullModelFromSettings(containerEl, RECOMMENDED_DEFAULT_MODEL);
+								.setButtonText("Use model")
+								.onClick(() => {
+									void this.useModelFromSettings(containerEl, RECOMMENDED_DEFAULT_MODEL);
 								})
 						);
 				}
@@ -1259,7 +1281,7 @@ class BrainChatSettingTab extends PluginSettingTab {
 
 			this.renderNoModelsInstalled(containerEl);
 		} catch (error) {
-			statusEl.setText("Could not connect to Ollama.");
+			statusEl.setText("Could not connect to ollama.");
 
 			const message = error instanceof Error ? error.message : String(error);
 			containerEl.createEl("pre", { text: message });
@@ -1271,7 +1293,7 @@ class BrainChatSettingTab extends PluginSettingTab {
 
 	renderNoModelsInstalled(containerEl: HTMLElement) {
 		containerEl.createEl("p", {
-			text: "No installed models were found in Ollama. Install a lightweight one to get started."
+			text: "No installed models were found in ollama. Install a lightweight one to get started."
 		});
 
 		new Setting(containerEl)
@@ -1279,9 +1301,9 @@ class BrainChatSettingTab extends PluginSettingTab {
 			.setDesc("Runs: ollama pull gemma4:e4b")
 			.addButton((button) =>
 				button
-					.setButtonText("Pull model")
-					.onClick(async () => {
-						await this.pullModelFromSettings(containerEl, RECOMMENDED_DEFAULT_MODEL);
+					.setButtonText("Use model")
+					.onClick(() => {
+						void this.useModelFromSettings(containerEl, RECOMMENDED_DEFAULT_MODEL);
 					})
 			);
 
@@ -1289,7 +1311,9 @@ class BrainChatSettingTab extends PluginSettingTab {
 	}
 
 	renderRecommendedModels(containerEl: HTMLElement) {
-		containerEl.createEl("h3", { text: "Recommended lightweight models" });
+		new Setting(containerEl)
+			.setName("Recommended lightweight models")
+			.setHeading();
 
 		for (const model of RECOMMENDED_LIGHT_MODELS) {
 			const command = `ollama pull ${model.name}`;
@@ -1300,10 +1324,8 @@ class BrainChatSettingTab extends PluginSettingTab {
 				.addButton((button) =>
 					button
 						.setButtonText("Use model name")
-						.onClick(async () => {
-							this.plugin.settings.chatModel = model.name;
-							await this.plugin.saveSettings();
-							this.display();
+						.onClick(() => {
+							void this.useModelFromSettings(containerEl, model.name);
 						})
 				);
 		}
@@ -1311,30 +1333,21 @@ class BrainChatSettingTab extends PluginSettingTab {
 
 	renderOllamaInstallHelp(containerEl: HTMLElement) {
 		new Setting(containerEl)
-			.setName("Install Ollama")
-			.setDesc("Open the official Ollama download page. After installing, start Ollama and return here.")
+			.setName("Install ollama")
+			.setDesc("Open the official ollama download page. After installing, start ollama and return here.")
 			.addButton((button) =>
 				button
 					.setButtonText("Open download")
-					.onClick(async () => {
-						await this.plugin.openOllamaDownload();
+					.onClick(() => {
+						void this.plugin.openOllamaDownload();
 					})
 			);
 	}
 
-	async pullModelFromSettings(containerEl: HTMLElement, modelName: string) {
+	async useModelFromSettings(containerEl: HTMLElement, modelName: string) {
 		this.plugin.settings.chatModel = modelName;
 		await this.plugin.saveSettings();
-		new Notice(`Installing ${modelName} with Ollama...`);
-
-		try {
-			await this.plugin.pullRecommendedModel();
-			new Notice(`${modelName} installed.`);
-			this.renderModelSelector(containerEl);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			new Notice(`Could not install ${modelName}.`);
-			containerEl.createEl("pre", { text: message });
-		}
+		new Notice(`Model set to ${modelName}. Install it with: ollama pull ${modelName}`);
+		await this.renderModelSelector(containerEl);
 	}
 }
