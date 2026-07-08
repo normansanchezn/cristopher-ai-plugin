@@ -1,0 +1,365 @@
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .view-content.brain-chat-container {
+	--brain-chat-blue: #0066ff;
+	--brain-chat-blue-hover: #0057d9;
+	--brain-chat-blue-soft: rgba(0, 102, 255, 0.14);
+	--brain-chat-border: rgba(120, 120, 120, 0.2);
+
+	display: flex !important;
+	flex-direction: column !important;
+	height: 100% !important;
+	min-height: 0 !important;
+	padding: 0 !important;
+	overflow: hidden !important;
+	background: var(--background-primary);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-header {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 14px 18px;
+	border-bottom: 1px solid rgba(120, 120, 120, 0.16);
+	background:
+		linear-gradient(135deg, rgba(0, 102, 255, 0.12), transparent 45%),
+		var(--background-primary);
+	backdrop-filter: blur(16px);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-title-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border-radius: 999px;
+	background: rgba(0, 102, 255, 0.10);
+	border: 1px solid rgba(0, 102, 255, 0.18);
+	font-size: 16px;
+	font-weight: 800;
+	letter-spacing: -0.03em;
+	color: var(--text-normal);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-header-subtitle {
+	font-size: 12px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-messages {
+	flex: 1 1 auto !important;
+	min-height: 0 !important;
+	overflow-y: auto !important;
+	padding: 16px 18px !important;
+	scroll-behavior: smooth;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-message {
+	display: flex !important;
+	width: 100%;
+	margin-bottom: 10px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-message.user {
+	justify-content: flex-end !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-message.assistant {
+	justify-content: flex-start !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-bubble {
+	max-width: 82%;
+	padding: 10px 13px;
+	border-radius: 20px;
+	line-height: 1.45;
+	word-break: break-word;
+	white-space: normal;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-message.user .brain-chat-bubble {
+	background: var(--brain-chat-blue);
+	color: white;
+	border-bottom-right-radius: 6px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-message.assistant .brain-chat-bubble {
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	border: 1px solid var(--brain-chat-border);
+	border-bottom-left-radius: 6px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-bubble p:first-child {
+	margin-top: 0;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-bubble p:last-child {
+	margin-bottom: 0;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-see-more {
+	color: var(--brain-chat-blue);
+	font-weight: 700;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-see-more:hover {
+	text-decoration: underline;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-composer {
+	flex: 0 0 auto !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 10px !important;
+	padding: 14px 18px 16px !important;
+	background: var(--background-primary) !important;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] textarea.brain-chat-input {
+	flex: 1 1 auto !important;
+	width: auto !important;
+	min-width: 0 !important;
+	min-height: 48px !important;
+	max-height: 140px !important;
+	height: 48px;
+	resize: none !important;
+	overflow-y: auto !important;
+	padding: 13px 18px !important;
+	border-radius: 24px !important;
+	border: 1px solid rgba(120, 120, 120, 0.22) !important;
+	background: var(--background-secondary) !important;
+	color: var(--text-normal) !important;
+	outline: none !important;
+	box-shadow: none !important;
+	line-height: 1.4 !important;
+	font-size: 14px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] textarea.brain-chat-input:focus {
+	border-color: var(--brain-chat-blue) !important;
+	box-shadow: 0 0 0 3px var(--brain-chat-blue-soft) !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-composer-actions {
+	flex: 0 0 auto !important;
+	display: flex !important;
+	flex-direction: row !important;
+	gap: 8px !important;
+	align-items: center !important;
+	padding: 0 !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] button.brain-chat-icon-button {
+	all: unset;
+	box-sizing: border-box;
+	width: 44px !important;
+	height: 44px !important;
+	min-width: 44px !important;
+	min-height: 44px !important;
+	border-radius: 999px !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: var(--brain-chat-blue) !important;
+	color: white !important;
+	border: 1px solid var(--brain-chat-blue) !important;
+	cursor: pointer !important;
+	box-shadow: 0 8px 22px rgba(0, 102, 255, 0.25);
+	transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] button.brain-chat-icon-button svg {
+	width: 18px !important;
+	height: 18px !important;
+	stroke-width: 2.4 !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] button.brain-chat-icon-button:hover:not(:disabled) {
+	transform: translateY(-1px);
+	background: var(--brain-chat-blue-hover) !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] button.brain-chat-icon-button:disabled {
+	opacity: 0.35 !important;
+	cursor: not-allowed !important;
+	transform: none !important;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] button.brain-chat-stop-button {
+	background: transparent !important;
+	color: var(--brain-chat-blue) !important;
+	box-shadow: none;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] button.brain-chat-stop-button.is-active {
+	background: var(--brain-chat-blue) !important;
+	color: white !important;
+	box-shadow: 0 8px 22px rgba(0, 102, 255, 0.25);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-loading-bubble {
+	min-width: 56px;
+	padding: 13px 15px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-loading-dots {
+	display: flex !important;
+	flex-direction: row !important;
+	gap: 5px;
+	align-items: center;
+	justify-content: center;
+	height: 12px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-loading-dots span {
+	width: 7px;
+	height: 7px;
+	border-radius: 999px;
+	background: var(--text-muted);
+	display: block;
+	animation: brain-chat-dot-pulse 1.1s infinite ease-in-out;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-loading-dots span:nth-child(2) {
+	animation-delay: 0.16s;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-loading-dots span:nth-child(3) {
+	animation-delay: 0.32s;
+}
+
+@keyframes brain-chat-dot-pulse {
+	0%, 80%, 100% {
+		transform: translateY(0);
+		opacity: 0.35;
+	}
+
+	40% {
+		transform: translateY(-4px);
+		opacity: 1;
+	}
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-state {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 24px;
+	color: var(--text-muted);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-orb {
+	width: 72px;
+	height: 72px;
+	border-radius: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 34px;
+	margin-bottom: 18px;
+	background:
+		radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.22), transparent),
+		linear-gradient(135deg, rgba(0, 102, 255, 0.28), rgba(124, 58, 237, 0.20));
+	border: 1px solid rgba(0, 102, 255, 0.25);
+	box-shadow: 0 18px 60px rgba(0, 102, 255, 0.14);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-state h3 {
+	margin: 0 0 8px;
+	color: var(--text-normal);
+	font-size: 22px;
+	letter-spacing: -0.04em;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-state p {
+	max-width: 440px;
+	margin: 0;
+	line-height: 1.5;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-model-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 18px;
+	padding: 8px 10px;
+	border-radius: 999px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-model-select {
+	max-width: 220px;
+	border-radius: 999px;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-empty-setup-button {
+	border-radius: 999px;
+	padding: 6px 10px;
+	background: var(--brain-chat-blue);
+	color: white;
+	border: 1px solid var(--brain-chat-blue);
+	cursor: pointer;
+}
+
+.workspace-leaf-content[data-type="christopher-ai-chat-view"] .brain-chat-bubble button.copy-code-button,
+.brain-chat-modal-body button.copy-code-button {
+	display: none !important;
+}
+
+.brain-chat-modal h2 {
+	margin: 0 0 8px;
+}
+
+.brain-chat-modal-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 10px;
+}
+
+.brain-chat-modal-copy-button {
+	all: unset;
+	box-sizing: border-box;
+	width: 34px;
+	height: 34px;
+	border-radius: 999px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid #0066ff;
+	background: #0066ff;
+	color: white;
+	cursor: pointer;
+}
+
+.brain-chat-modal-copy-button svg {
+	width: 17px;
+	height: 17px;
+}
+
+.brain-chat-modal-body {
+	max-height: 65vh;
+	overflow-y: auto;
+	line-height: 1.5;
+	padding: 14px;
+	border-radius: 14px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.brain-chat-modal-body p:first-child {
+	margin-top: 0;
+}
+
+.brain-chat-modal-body p:last-child {
+	margin-bottom: 0;
+}
