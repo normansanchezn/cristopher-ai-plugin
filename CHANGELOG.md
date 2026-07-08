@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1
+
+Community review compatibility release.
+
+### Changed
+
+- Updated the plugin version to `0.1.1`.
+- Kept the plugin ID stable as `christopher-ai`.
+- Confirmed the manifest description does not include redundant directory context.
+- Kept the minimum app version aligned with the workspace APIs used by the plugin.
+
 ## 0.1.0
 
 Initial community release of Christopher AI.

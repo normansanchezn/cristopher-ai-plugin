@@ -1,6 +1,6 @@
 {
 	"name": "christopher-ai-plugin",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "A local Obsidian AI assistant that searches notes through tags, properties, titles, graph links, and Ollama.",
 	"main": "main.js",
 	"type": "module",
